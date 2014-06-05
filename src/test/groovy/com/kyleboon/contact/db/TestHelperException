@@ -1,0 +1,5 @@
+class TestHelperException extends Exception {
+	TestHelperException(String s) {
+		super(s)
+	}
+}

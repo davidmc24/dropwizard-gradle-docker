@@ -1,0 +1,16 @@
+{
+    "id": 0,
+    "firstName": "Kyle",
+    "lastName": "Boon",
+    "jobTitle": "developer",
+    "phoneNumber": "999-999-9999",
+    "address": {
+        "id": 0,
+        "address1":"15 South 5th Street",
+        "address2":"",
+        "city":"Minneapolis",
+        "state":"MN",
+        "county":"Hennepin",
+        "zipCode":"55402"
+    }
+}
