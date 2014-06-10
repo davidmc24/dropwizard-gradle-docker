@@ -4,3 +4,4 @@ out/
 logs
 *.db
 build/
+.vagrant/

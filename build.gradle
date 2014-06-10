@@ -1,4 +1,5 @@
-import com.github.jengelman.gradle.plugins.shadow.transformers.ServiceFileTransformer
+import org.gradle.api.plugins.docker.tasks.container.*
+import org.gradle.api.plugins.docker.tasks.image.*
 
 buildscript {
     repositories {
@@ -8,9 +9,9 @@ buildscript {
         }
     }
     dependencies {
-        classpath "net.saliman:gradle-cobertura-plugin:1.1.0"
-        classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:2.0.16'
-        classpath 'com.github.jengelman.gradle.plugins:shadow:0.8'
+        classpath("com.kpelykh:docker-java:0.8.1")
+        classpath("net.saliman:gradle-cobertura-plugin:1.1.0")
+        classpath 'com.github.jengelman.gradle.plugins:shadow:0.9.0-M2'
         classpath 'org.gradle.api.plugins:gradle-docker-plugin:0.1'
     }
 }
@@ -19,8 +20,9 @@ apply plugin: 'cobertura'
 apply plugin: 'codenarc'
 apply plugin: 'groovy'
 apply plugin: 'maven'
-apply plugin: 'shadow'
+apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'docker'
+apply plugin: 'application'
 
 group 'org.kyleboon'
 version = "$currentVersion"
@@ -36,7 +38,7 @@ repositories {
 }
 
 dependencies {
-    groovy "org.codehaus.groovy:groovy-all:$groovyVersion"
+    compile "org.codehaus.groovy:groovy-all:$groovyVersion"
 
     compile "io.dropwizard:dropwizard-core:$dropwizardVersion"
     compile "io.dropwizard:dropwizard-testing:$dropwizardVersion"
@@ -102,32 +104,55 @@ codenarc {
     reportFormat = System.properties['codeNarcOutput'] ?: 'html'
 }
 
-shadow {
-    exclude 'META-INF/*.DSA'
-    exclude 'META-INF/*.RSA'
-    transformer ServiceFileTransformer
+mainClassName = 'com.kyleboon.contact.ContactsService'
+
+shadowJar {
+    mergeServiceFiles()
 }
 
-task run(dependsOn: 'shadowJar', group: 'dropwizard',  description: "Run service using dev configuration") << {
-    // Grab any dw. properties that are specified on the command line and pass to the Java process (i.e. dw.http.port=8080)
-    def props = project.ext.properties.findAll { it.key.startsWith('dw') }
-    javaexec {
-        main = '-jar'
-        args = ["${shadow.shadowJar.getPath()}", 'server', 'dev_config.yml']
-        systemProperties = props
-    }
+run {
+    args 'server', "src/main/resources/todo.yml"
 }
 
-task migrate(dependsOn: 'shadowJar', group: 'dropwizard', description: "Run migrations using the dev configuration") << {
-    javaexec {
-        main = '-jar'
-        args = ["${shadow.shadowJar.getPath()}", 'db', 'migrate', 'dev_config.yml']
-    }
+runShadow {
+    args 'server', "src/main/resources/todo.yml"
 }
 
-task dropAll(dependsOn: 'shadowJar', group: 'dropwizard',  description: "Run drop-all database command") << {
-    javaexec {
-        main = '-jar'
-        args = ["${shadow.shadowJar.getPath()}", 'db', 'drop-all', 'dev_config.yml', '--confirm-delete-everything']
-    }
+task buildScriptReport(type: DependencyReportTask) {
+    configurations = [project.buildscript.configurations.classpath]
+}
+
+
+/**
+ *  Docker configuration
+ */
+
+docker {
+    serverUrl = 'http://localhost:2375'
+}
+
+ext.imageTag = 'test/contact'
+
+task buildMyAppImage(type: DockerBuildImage) {
+    inputDir =  projectDir
+    tag = imageTag
+}
+
+task createMyAppContainer(type: DockerCreateContainer) {
+    dependsOn buildMyAppImage
+    imageId = imageTag
+}
+
+task startMyAppContainer(type: DockerStartContainer) {
+    dependsOn createMyAppContainer
+    targetContainerId { createMyAppContainer.getContainerId() }
+}
+
+task stopMyAppContainer(type: DockerStopContainer) {
+    targetContainerId { createMyAppContainer.getContainerId() }
+}
+
+task functionalTestMyApp(type: Test) {
+    dependsOn startMyAppContainer
+    finalizedBy stopMyAppContainer
 }
